@@ -4,13 +4,13 @@ Rade explicitly rejected the superpowers:writing-plans format (checkbox TDD micr
 
 **Why:** the planner's output tokens are the expensive ones (Opus 5.5 at xhigh); the planner writing near-final code in a plan so Sonnet can transcribe it is backwards. Also plans that duplicate existing code add no information over precise pointers.
 
-**How to apply:** Plans = decisions + precise file:line pointers + traps/judgment calls; implementers do the typing. The one exception is a Haiku worker brief: it is written once for a class of item and reused N times, so it carries superpowers-level detail. Established pipeline (BEP-1877 on the beppo laptop, worked well; remapped to the 5.5 family 2026-10-08):
+**How to apply:** Plans = decisions + precise file:line pointers + traps/judgment calls; implementers do the typing. The one exception is a Haiku worker brief: it is written once for a class of item and reused N times, so it carries superpowers-level detail. Established pipeline (worked well on a multi-phase backend feature; remapped to the 5.5 family 2026-10-08):
 
 1. Opus 5.5 at xhigh investigates and designs (planning session)
 2. Lean plan (decisions, pointers, traps — not code); each task names its implementer model and effort
 3. An Opus 5.5 medium coordination session dispatches ONE implementer per task (Sonnet 5.5 by default, Opus 5.5 for judgment-heavy tasks, Haiku 5.5 workers for mechanical per-item work)
 4. The coordinator reviews the diff itself, param-by-param (no separate reviewer subagent per task)
-5. Endgame, whole branch: a fresh Opus xhigh session does the whole-branch review itself AND dispatches a Codex code review (model `gpt-6.1-sol` for this merge gate; `gpt-5.6-terra` high effort for in-phase increment reviews — full ids only, short names like `sol` are rejected; table in the claude-dev-pipeline skill); both, not just Codex
+5. Endgame, whole branch: a fresh Opus xhigh session does the whole-branch review itself AND dispatches a Codex code review (model `gpt-6.1-sol` for this merge gate; `gpt-5.6-terra` high effort for in-phase increment reviews — full ids only, short names like `sol` are rejected; table in the claude-dev-pipeline skill) plus a Gemini review via agy; never Codex alone
 6. User does final QA acceptance
 
 Fable 5.1 is an architecture/security advisor only, dispatched after Rade confirms each question (it bills as subscription overage).
@@ -21,4 +21,4 @@ The full evolved pipeline (prime directives incl. trust-the-framework/Not-Invent
 
 Source: repo `RockyMM/claude-skills`, `skills/claude-dev-pipeline/`; `~/.claude/rules/` holds a symlink to it. Edit it in the repo.
 
-Origin: beppo-backend memory `feedback-lean-plans-delegation-pipeline` (other laptop); user asked for it to apply globally on this machine (2026-07-03, evolution PGS-770 session, after a superpowers-style plan was written against this preference).
+Origin: a project memory, made global on 2026-07-03 after a superpowers-style plan was written against this preference.

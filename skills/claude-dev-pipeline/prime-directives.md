@@ -1,6 +1,6 @@
 # Prime directives (all projects, nearly all work)
 
-Codified from the 2026-07-10 BEP-1969 retrospective. Directives 1–4 apply to nearly any work
+Codified from a 2026-07-10 project retrospective. Directives 1–4 apply to nearly any work
 Rade does; directive 5 applies whenever a code review is involved (any reviewer: Fable, Codex,
 subagents). The `claude-dev-pipeline` skill pastes them into every implementer and reviewer brief.
 Source: repo `RockyMM/claude-skills`, `skills/claude-dev-pipeline/`; `~/.claude/rules/` holds a
