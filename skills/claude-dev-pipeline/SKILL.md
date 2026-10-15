@@ -1,6 +1,6 @@
 ---
 name: claude-dev-pipeline
-description: Use when starting a multi-phase feature or refactor that will be implemented via subagents (user says "use the pipeline", "normal plan", "resume the plan", "run the final gate", or kicks off work against a design + implementation-plan doc pair). Three sessions - an Opus xhigh planning session writes resumable design/plan docs; an Opus medium coordination session dispatches Sonnet/Opus implementers and Haiku workers, gives each increment layered review (coordinator + Codex gpt-5.6-terra high + Gemini via agy) and commits each accepted phase; a fresh Opus xhigh session runs the final whole-branch seam review with Codex gpt-6.1-sol and Gemini before user QA. Fable only as an architecture/security advisor after Rade confirms. Encodes token-economy rules and the prime directives.
+description: Use when starting a multi-phase feature or refactor that will be implemented via subagents (user says "use the pipeline", "normal plan", "resume the plan", "run the final gate", or kicks off work against a design + implementation-plan doc pair). Three sessions - an Opus xhigh planning session writes resumable design/plan docs; an Opus medium coordination session dispatches Sonnet/Opus implementers and Haiku workers, gives each increment layered review (coordinator + Codex gpt-5.6-terra high + Gemini via agy), commits each phase before its review and amends the accepted fixes into it; a fresh Opus xhigh session runs the final whole-branch seam review with Codex gpt-6.1-sol and Gemini before user QA. Fable only as an architecture/security advisor after Rade confirms. Encodes token-economy rules and the prime directives.
 ---
 
 # Claude Dev Pipeline
@@ -184,9 +184,9 @@ When a new model appears, probe it before writing it anywhere:
   absence"), (c) settled decisions (do not re-litigate).
 - **Give a repo-reading reviewer the range as base and head SHAs (`<base>..<head>`), never an
   inlined diff.** It runs `git diff`/`git log`/`git show` itself and reads the surrounding code.
-- **State the working-tree situation:** which commits are in scope, and whether uncommitted edits
-  exist and should be reviewed. Reviewers act on this — one spotted an unstaged fix mid-review and
-  adjusted its verdict.
+- **State the working-tree situation:** which commits are in scope (the phase commit is always
+  among them, see the commit gate), and whether uncommitted edits exist and should be reviewed.
+  Reviewers act on this — one spotted an unstaged fix mid-review and adjusted its verdict.
 - **State that a clean verdict is a fully successful review.** Findings must cite a concrete,
   REACHABLE failing execution path and must check for an existing framework mechanism first.
 - **A fast-returning or empty run is a FAILED run until the output proves otherwise.** Check the
@@ -257,16 +257,16 @@ ways to run it:
   review): give Rade the command to run in his terminal, and read the verdict when he says it is
   done: `agy -i "$(cat <prompt>.md)" --model gemini-3.1-pro-high --mode plan`.
 
-## Commit gate — closes every phase
+## Commit gate — opens every phase review
 
-A phase is not done until it is committed. The coordinator commits each ACCEPTED phase before the
-next one starts. An uncommitted phase turns a usage-limit kill or a laptop swap into lost or
-half-applied work, and a dirty tree makes the next phase's diff unreviewable: reviewers cannot
-tell phase N+1's changes from phase N's leftovers.
+A phase is committed before it is reviewed. An uncommitted phase turns a usage-limit kill or a
+laptop swap into lost or half-applied work, and a dirty tree makes the next phase's diff
+unreviewable: reviewers cannot tell phase N+1's changes from phase N's leftovers. A reviewer can
+also edit files despite `--sandbox read-only` (Codex has); with the phase committed, `git status`
+shows exactly what it touched and `git restore` undoes it without risk to the phase.
 
-A phase is ACCEPTED when the review fixes are applied and adjudicated, the repo's per-phase checks
-(lint, build, scoped tests) pass with evidence, and the coordinator's review found nothing
-outstanding. Then, in order:
+When the implementer reports and the repo's per-phase checks (lint, build, scoped tests) pass
+with evidence:
 
 1. `git status --short` — know exactly what will be staged, and confirm the handover docs are not
    among it.
@@ -276,6 +276,19 @@ outstanding. Then, in order:
 4. One commit per phase, message `<TICKET>: <what this phase delivered>`. Not "wip", not a squash
    of several phases.
 5. Record the hash in the plan doc's status notes in the same turn.
+
+Then review:
+
+6. Save `git status --porcelain` before each external reviewer run and compare it afterwards. A
+   reviewer's edits show as tracked changes; a file it created shows as a new untracked path. Do
+   not `git clean` — the handover docs are untracked too. If anything changed, stop and tell
+   Rade; he deals with the fallout.
+7. Apply and adjudicate the review fixes, re-run the per-phase checks, and **amend them into the
+   phase commit** (`git commit --amend`). After a push, fixes go in as a new commit instead —
+   never rewrite pushed history. Update the hash in the status notes.
+
+The phase is ACCEPTED when the amended commit passes its checks and the coordinator's review
+found nothing outstanding. Only then does the next phase start.
 
 Commit, do not push, and do not open a PR unless Rade asks. Branch work stays local until the
 final gate and his QA acceptance.
@@ -328,7 +341,9 @@ has no implementation transcript, so it judges the branch as an outside reviewer
 - Dispatching Fable without Rade's confirmation for that specific question.
 - Haiku workers on a rename a refactoring tool does; two workers on one file; Haiku output
   merged without a check.
-- Starting a phase while the previous one sits uncommitted, or letting an implementer commit.
+- Starting a phase while the previous one sits uncommitted or unreviewed, or letting an implementer
+  commit.
+- Reviewing an uncommitted phase: a reviewer's stray edits then mix with the phase's own.
 - Messaging a fat, cold agent for a small task (replay cost) — or spawning fresh mid-phase
   for what the hot implementer can do (re-brief cost). Both directions are real.
 - Codex-only review (the coordinator's in-session review is mandatory, and vice versa).
