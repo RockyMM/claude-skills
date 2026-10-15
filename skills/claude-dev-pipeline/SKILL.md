@@ -148,8 +148,9 @@ never shorten it and never add or drop a version prefix. Verified on codex-cli 0
 | `gpt-5.6-terra` | Sonnet                   | per-increment review, high effort   |
 | `gpt-6-luna`    | Haiku                    | none assigned                       |
 
-Gemini via agy: `gemini-3.8-flash-high` for headless reviews, `gemini-3.1-pro-high` for
-interactive ones. agy slugs embed the effort (`gemini-3.8-flash-high`, not `--effort high`).
+Gemini via agy: `gemini-3.8-flash-high` for headless and interactive reviews (agy 1.3.5 offers
+no Pro model; verified 2026-10-15). agy slugs embed the effort (`gemini-3.8-flash-high`, not
+`--effort high`).
 
 Before the first dispatch of a session, list what is installed. If a model is gone, report it
 and ask; never silently substitute a neighbouring version.
@@ -255,7 +256,7 @@ ways to run it:
     from `~/.gemini/antigravity-cli/cache/last_conversations.json`, keyed by repo path.
 - **Interactive, when the reviewer must walk the repo** (too many files to embed, a whole-branch
   review): give Rade the command to run in his terminal, and read the verdict when he says it is
-  done: `agy -i "$(cat <prompt>.md)" --model gemini-3.1-pro-high --mode plan`.
+  done: `agy -i "$(cat <prompt>.md)" --model gemini-3.8-flash-high --mode plan`.
 
 ## Commit gate — opens every phase review
 
