@@ -10,7 +10,7 @@ Rade explicitly rejected the superpowers:writing-plans format (checkbox TDD micr
 2. Lean plan (decisions, pointers, traps — not code); each task names its implementer model and effort
 3. An Opus 5.5 medium coordination session dispatches ONE implementer per task (Sonnet 5.5 by default, Opus 5.5 for judgment-heavy tasks, Haiku 5.5 workers for mechanical per-item work)
 4. The coordinator reviews the diff itself, param-by-param (no separate reviewer subagent per task)
-5. Endgame, whole branch: a fresh Opus xhigh session does the whole-branch review itself AND dispatches a Codex code review (model `gpt-6.1-sol` for this merge gate; `gpt-5.6-terra` high effort for in-phase increment reviews — full ids only, short names like `sol` are rejected; table in the claude-dev-pipeline skill) plus a Gemini review via agy; never Codex alone
+5. Endgame, whole branch: a fresh Opus xhigh session does the whole-branch review itself AND dispatches a Codex code review (model `gpt-6.1-sol` for this merge gate; `gpt-6.1-terra` high effort for in-phase increment reviews — full ids only, short names like `sol` are rejected; table in the claude-dev-pipeline skill) plus a Gemini review via agy; never Codex alone
 6. User does final QA acceptance
 
 Fable 5.1 is an architecture/security advisor only, dispatched after Rade confirms each question (it bills as subscription overage).

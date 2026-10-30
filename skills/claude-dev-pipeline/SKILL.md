@@ -1,6 +1,6 @@
 ---
 name: claude-dev-pipeline
-description: Use when starting a multi-phase feature or refactor that will be implemented via subagents (user says "use the pipeline", "normal plan", "resume the plan", "run the final gate", or kicks off work against a design + implementation-plan doc pair). Three sessions - an Opus xhigh planning session writes resumable design/plan docs; an Opus medium coordination session dispatches Sonnet/Opus implementers and Haiku workers, gives each increment layered review (coordinator + Codex gpt-5.6-terra high + Gemini via agy), commits each phase before its review and amends the accepted fixes into it; a fresh Opus xhigh session runs the final whole-branch seam review with Codex gpt-6.1-sol and Gemini before user QA. Fable only as an architecture/security advisor after Rade confirms. Encodes token-economy rules and the prime directives.
+description: Use when starting a multi-phase feature or refactor that will be implemented via subagents (user says "use the pipeline", "normal plan", "resume the plan", "run the final gate", or kicks off work against a design + implementation-plan doc pair). Three sessions - an Opus xhigh planning session writes resumable design/plan docs; an Opus medium coordination session dispatches Sonnet/Opus implementers and Haiku workers, gives each increment layered review (coordinator + Codex gpt-6.1-terra high + Gemini via agy), commits each phase before its review and amends the accepted fixes into it; a fresh Opus xhigh session runs the final whole-branch seam review with Codex gpt-6.1-sol and Gemini before user QA. Fable only as an architecture/security advisor after Rade confirms. Encodes token-economy rules and the prime directives.
 ---
 
 # Claude Dev Pipeline
@@ -138,14 +138,16 @@ lookups ("which of these 40 classes override X").
 
 Short names fail. `-m sol` returns `400 The 'sol' model is not supported when using Codex with a
 ChatGPT account`, and that mistake has recurred across sessions. Copy the id from this table;
-never shorten it and never add or drop a version prefix. Verified on codex-cli 0.156.1, 2026-09-23; `gpt-6.1-sol` probed on codex-cli 0.159.0, 2026-10-05.
+never shorten it and never add or drop a version prefix. Verified on codex-cli 0.156.1, 2026-09-23; `gpt-6.1-sol` probed on codex-cli 0.159.0, 2026-10-05;
+`gpt-6.1-terra` probed on codex-cli 0.162.1, 2026-10-30.
 
 | Id              | Tier (Claude equivalent) | Pipeline role                       |
 | --------------- | ------------------------ | ----------------------------------- |
 | `gpt-6-astra`   | Fable                    | none assigned yet                   |
 | `gpt-6.1-sol`   | Opus                     | final-gate whole-branch review      |
 | `gpt-6-sol`     | Opus                     | superseded by `gpt-6.1-sol`         |
-| `gpt-5.6-terra` | Sonnet                   | per-increment review, high effort   |
+| `gpt-6.1-terra` | Sonnet                   | per-increment review, high effort   |
+| `gpt-5.6-terra` | Sonnet                   | superseded by `gpt-6.1-terra`       |
 | `gpt-6-luna`    | Haiku                    | none assigned                       |
 
 Gemini via agy: `gemini-3.8-flash-high` for headless and interactive reviews (agy 1.3.5 offers
@@ -168,7 +170,7 @@ When a new model appears, probe it before writing it anywhere:
 1. **Coordinator in-session** (not delegable — it holds the session context): diff
    param-by-param against plan + design; repo conventions (`.claude/rules/`), test naming
    (`*IT`/`*Test`), spec-first rule, prime directives.
-2. **Codex, model `gpt-5.6-terra`, high effort** — external breadth, costs nothing against
+2. **Codex, model `gpt-6.1-terra`, high effort** — external breadth, costs nothing against
    Anthropic limits. See "Dispatching Codex" below.
 3. **Gemini via agy** — an independent second opinion that catches a different class of thing
    than Codex. Default on; skip it only when the whole piece of work is 1–2 mechanically simple
@@ -215,7 +217,7 @@ to upstream. Codex, reading the repo, refuted both: two fabricated blockers from
 
 The CLI in a background shell (MCP times out on long reviews). Write the prompt to a scratch
 file, then:
-`codex exec --sandbox read-only -m gpt-5.6-terra -c 'model_reasoning_effort="high"' "$(cat prompt.md)" < /dev/null > review.log 2>&1` (background).
+`codex exec --sandbox read-only -m gpt-6.1-terra -c 'model_reasoning_effort="high"' "$(cat prompt.md)" < /dev/null > review.log 2>&1` (background).
 
 - `< /dev/null` is required: without it a backgrounded `codex exec` stops at "Reading
   additional input from stdin".
@@ -317,7 +319,7 @@ has no implementation transcript, so it judges the branch as an outside reviewer
   transaction boundaries, duplicated helpers, contract drift between phases, spec-vs-impl match,
   security surface as a whole, resource completeness, debris grep (TODO/FIXME/System.out).
 - **Codex whole-branch review on `gpt-6.1-sol`** (the Opus tier, above terra — reserve it for
-  this gate, `gpt-5.6-terra` stays the in-phase reviewer): same CLI dispatch and prompt
+  this gate, `gpt-6.1-terra` stays the in-phase reviewer): same CLI dispatch and prompt
   discipline as above, docs-first, full scope-out list including everything settled during the
   phases, and ask for an explicit MERGE / DO-NOT-MERGE verdict. Still zero Anthropic cost.
 - **Gemini whole-branch review** alongside sol, on the same scoped brief, unless the branch was
