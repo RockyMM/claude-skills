@@ -1,6 +1,6 @@
 ---
 name: claude-dev-pipeline
-description: Use when starting a multi-phase feature or refactor that will be implemented via subagents (user says "use the pipeline", "normal plan", "resume the plan", "run the final gate", or kicks off work against a design + implementation-plan doc pair). Three sessions - an Opus xhigh planning session writes resumable design/plan docs; an Opus medium coordination session dispatches Sonnet/Opus implementers and Haiku workers, gives each increment layered review (coordinator + Codex gpt-6.1-terra high + Gemini via agy), commits each phase before its review and amends the accepted fixes into it; a fresh Opus xhigh session runs the final whole-branch seam review with Codex gpt-6.1-sol and Gemini before user QA. Fable only as an architecture/security advisor after Rade confirms. Encodes token-economy rules and the prime directives.
+description: Use when starting a multi-phase feature or refactor that will be implemented via subagents (user says "use the pipeline", "normal plan", "resume the plan", "run the final gate", or kicks off work against a design + implementation-plan doc pair). Three sessions - an Opus xhigh planning session writes resumable design/plan docs; an Opus medium coordination session dispatches Sonnet/Opus implementers and Haiku workers, gives each increment layered review (coordinator + Codex gpt-6.1-terra high + Gemini gemini-4-neon-high via agy), commits each phase before its review and amends the accepted fixes into it; a fresh Opus xhigh session runs the final whole-branch seam review with Codex gpt-6.1-sol and Gemini gemini-4-neon-xhigh before user QA. Fable only as an architecture/security advisor after Rade confirms. Encodes token-economy rules and the prime directives.
 ---
 
 # Claude Dev Pipeline
@@ -150,9 +150,16 @@ never shorten it and never add or drop a version prefix. Verified on codex-cli 0
 | `gpt-5.6-terra` | Sonnet                   | superseded by `gpt-6.1-terra`       |
 | `gpt-6-luna`    | Haiku                    | none assigned                       |
 
-Gemini via agy: `gemini-3.8-flash-high` for headless and interactive reviews (agy 1.3.5 offers
-no Pro model; verified 2026-10-15). agy slugs embed the effort (`gemini-3.8-flash-high`, not
-`--effort high`).
+Gemini via agy. agy slugs embed the effort (`gemini-4-neon-high`, not `--effort high`).
+Verified on agy 1.5.15, 2026-11-23. Tiers follow published benchmarks, not Google's labels: Neon
+outscores Argon, and Carbon (the top Gemini 4 model) is not on this subscription.
+
+| Model family        | Efforts in agy | Tier (Claude equivalent) | Pipeline role                             |
+| ------------------- | -------------- | ------------------------ | ----------------------------------------- |
+| `gemini-4-neon`     | low–xhigh      | Opus                     | `-high` per increment, `-xhigh` final gate |
+| `gemini-4-argon`    | low–high       | Opus (older, lower)      | none assigned                             |
+| `gemini-4-hydrogen` | low–xhigh      | Haiku                    | none assigned                             |
+| `gemini-3.8-flash`  | low–high       | Haiku                    | superseded by `gemini-4-neon`             |
 
 Before the first dispatch of a session, list what is installed. If a model is gone, report it
 and ask; never silently substitute a neighbouring version.
@@ -243,7 +250,7 @@ ways to run it:
   excerpts, and an instruction not to use tools.
 
   ```bash
-  agy --model gemini-3.8-flash-high --mode plan --sandbox --print-timeout 10m \
+  agy --model gemini-4-neon-high --mode plan --sandbox --print-timeout 10m \
     --print "$(cat prompt.md)" > agy-review.md 2> agy-stderr.log
   test -s agy-review.md
   ```
@@ -253,12 +260,16 @@ ways to run it:
     looks like a prompt-size problem when it is not.
   - `--print-timeout` defaults to 5m; raise it or the review dies mid-thought.
   - Exit 0 with empty stdout is not a review: check stderr and re-dispatch.
+  - In plan mode a model can answer by writing `implementation_plan.md` under
+    `~/.gemini/antigravity-cli/brain/<id>/` and printing only a link to it. Then stdout is not
+    empty but holds no review: read that file, or tell the model to reply on stdout.
   - `--mode plan --sandbox` is the read-only posture.
   - Never `--continue`/`-c` (ambiguous "most recent"). Resume by the recorded `--conversation` id
     from `~/.gemini/antigravity-cli/cache/last_conversations.json`, keyed by repo path.
 - **Interactive, when the reviewer must walk the repo** (too many files to embed, a whole-branch
   review): give Rade the command to run in his terminal, and read the verdict when he says it is
-  done: `agy -i "$(cat <prompt>.md)" --model gemini-3.8-flash-high --mode plan`.
+  done: `agy -i "$(cat <prompt>.md)" --model gemini-4-neon-high --mode plan` (`-xhigh` at the
+  final gate).
 
 ## Commit gate — opens every phase review
 
@@ -322,7 +333,7 @@ has no implementation transcript, so it judges the branch as an outside reviewer
   this gate, `gpt-6.1-terra` stays the in-phase reviewer): same CLI dispatch and prompt
   discipline as above, docs-first, full scope-out list including everything settled during the
   phases, and ask for an explicit MERGE / DO-NOT-MERGE verdict. Still zero Anthropic cost.
-- **Gemini whole-branch review** alongside sol, on the same scoped brief, unless the branch was
+- **Gemini whole-branch review on `gemini-4-neon-xhigh`** alongside sol, on the same scoped brief, unless the branch was
   trivial enough to skip Gemini in-phase. A whole branch rarely fits in a headless prompt, so
   this one is usually interactive.
 - No additional Anthropic-side reviewer agent — adjudication stays with this session.
