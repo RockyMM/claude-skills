@@ -1,6 +1,6 @@
 ---
 name: claude-dev-pipeline
-description: Use when starting a multi-phase feature or refactor that will be implemented via subagents (user says "use the pipeline", "normal plan", "resume the plan", "run the final gate", or kicks off work against a design + implementation-plan doc pair). Three sessions - an Opus xhigh planning session writes resumable design/plan docs; an Opus medium coordination session dispatches Sonnet/Opus implementers and Haiku workers, gives each increment layered review (coordinator + Codex gpt-6.1-terra high + Gemini gemini-4-neon-high via agy), commits each phase before its review and amends the accepted fixes into it; a fresh Opus xhigh session runs the final whole-branch seam review with Codex gpt-6.1-sol and Gemini gemini-4-neon-xhigh before user QA. Fable only as an architecture/security advisor after Rade confirms. Encodes token-economy rules and the prime directives.
+description: Use when starting a multi-phase feature or refactor that will be implemented via subagents (user says "use the pipeline", "normal plan", "resume the plan", "run the final gate", or kicks off work against a design + implementation-plan doc pair). Three sessions - an Opus xhigh planning session writes resumable design/plan docs; an Opus medium coordination session dispatches Sonnet/Opus implementers and Haiku workers, gives each increment layered review (coordinator + Codex gpt-6.1-terra high + Gemini gemini-4-neon-high via agy), commits each phase before its review and amends the accepted fixes into it; a fresh Opus xhigh session runs the final whole-branch seam review with Codex gpt-6.2-sol and Gemini gemini-4-neon-xhigh before user QA. Fable only as an architecture/security advisor after Rade confirms. Encodes token-economy rules and the prime directives.
 ---
 
 # Claude Dev Pipeline
@@ -139,16 +139,19 @@ lookups ("which of these 40 classes override X").
 Short names fail. `-m sol` returns `400 The 'sol' model is not supported when using Codex with a
 ChatGPT account`, and that mistake has recurred across sessions. Copy the id from this table;
 never shorten it and never add or drop a version prefix. Verified on codex-cli 0.156.1, 2026-09-23; `gpt-6.1-sol` probed on codex-cli 0.159.0, 2026-10-05;
-`gpt-6.1-terra` probed on codex-cli 0.162.1, 2026-10-30.
+`gpt-6.1-terra` probed on codex-cli 0.162.1, 2026-10-30; `gpt-6.2-sol` and `gpt-6.2-astra` probed on
+codex-cli 0.172.0, 2026-11-24 (older CLIs reject the 6.2 models).
 
-| Id              | Tier (Claude equivalent) | Pipeline role                       |
-| --------------- | ------------------------ | ----------------------------------- |
-| `gpt-6-astra`   | Fable                    | none assigned yet                   |
-| `gpt-6.1-sol`   | Opus                     | final-gate whole-branch review      |
-| `gpt-6-sol`     | Opus                     | superseded by `gpt-6.1-sol`         |
-| `gpt-6.1-terra` | Sonnet                   | per-increment review, high effort   |
-| `gpt-5.6-terra` | Sonnet                   | superseded by `gpt-6.1-terra`       |
-| `gpt-6-luna`    | Haiku                    | none assigned                       |
+| Id              | Tier (Claude equivalent) | Pipeline role                          |
+| --------------- | ------------------------ | -------------------------------------- |
+| `gpt-6.2-astra` | Fable                    | UI/UX second opinion, on request only  |
+| `gpt-6-astra`   | Fable                    | superseded by `gpt-6.2-astra`          |
+| `gpt-6.2-sol`   | Opus                     | final-gate whole-branch review         |
+| `gpt-6.1-sol`   | Opus                     | superseded by `gpt-6.2-sol`            |
+| `gpt-6-sol`     | Opus                     | superseded by `gpt-6.2-sol`            |
+| `gpt-6.1-terra` | Sonnet                   | per-increment review, high effort      |
+| `gpt-5.6-terra` | Sonnet                   | superseded by `gpt-6.1-terra`          |
+| `gpt-6-luna`    | Haiku                    | none assigned                          |
 
 Gemini via agy. agy slugs embed the effort (`gemini-4-neon-high`, not `--effort high`).
 Verified on agy 1.5.15, 2026-11-23. Tiers follow published benchmarks, not Google's labels: Neon
@@ -168,6 +171,11 @@ and ask; never silently substitute a neighbouring version.
 python3 -c "import json,os;print(' '.join(m['slug'] for m in json.load(open(os.path.expanduser('~/.codex/models_cache.json')))['models']))"
 agy models
 ```
+
+Other Codex clients share `models_cache.json`. An older one rewrites it without the newest models:
+the app-server daemon (which also serves the interactive `/model` picker) or the CLI bundled
+in the ChatGPT app. If a model is missing, compare the versions in `codex app-server daemon version`,
+run `codex app-server daemon update` if they differ, then probe the model.
 
 When a new model appears, probe it before writing it anywhere:
 `codex exec --skip-git-repo-check --sandbox read-only -m <id> "Reply with the single word OK." < /dev/null`.
@@ -329,7 +337,7 @@ has no implementation transcript, so it judges the branch as an outside reviewer
 - **Whole-branch review focused on seams**: interactions BETWEEN subagent deliverables —
   transaction boundaries, duplicated helpers, contract drift between phases, spec-vs-impl match,
   security surface as a whole, resource completeness, debris grep (TODO/FIXME/System.out).
-- **Codex whole-branch review on `gpt-6.1-sol`** (the Opus tier, above terra — reserve it for
+- **Codex whole-branch review on `gpt-6.2-sol`** (the Opus tier, above terra — reserve it for
   this gate, `gpt-6.1-terra` stays the in-phase reviewer): same CLI dispatch and prompt
   discipline as above, docs-first, full scope-out list including everything settled during the
   phases, and ask for an explicit MERGE / DO-NOT-MERGE verdict. Still zero Anthropic cost.
