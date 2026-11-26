@@ -153,7 +153,8 @@ codex-cli 0.172.0, 2026-11-24 (older CLIs reject the 6.2 models).
 | `gpt-5.6-terra` | Sonnet                   | superseded by `gpt-6.1-terra`          |
 | `gpt-6-luna`    | Haiku                    | none assigned                          |
 
-Gemini via agy. agy slugs embed the effort (`gemini-4-neon-high`, not `--effort high`).
+Gemini via agy. Pass the full slug, which embeds the effort (`gemini-4-neon-high`). A bare
+`gemini-4-neon` resolves to the server's default effort (high on 2026-11-26), which can change.
 Verified on agy 1.5.15, 2026-11-23. Tiers follow published benchmarks, not Google's labels: Neon
 outscores Argon, and Carbon (the top Gemini 4 model) is not on this subscription.
 
@@ -218,10 +219,8 @@ missing context as missing code and reports it with full confidence.
 - **Codex** reads the real repo under `--sandbox read-only`. Say so in the prompt, and point it at
   the files worth comparing (`node_modules/<lib>` for an ejected or overridden framework file, the
   sibling repo for a shared file).
-- **Gemini** reads the real repo too when dispatched with `--dangerously-skip-permissions` (see
-  "Dispatching Gemini"): give it the SHA range like Codex. Only the no-tools fallback needs the
-  code in the prompt: the complete post-change contents of every touched file, plus any file the
-  change ejects, overrides, extends or relies on. A diff hunk is orientation, not evidence.
+- **Gemini** reads the real repo too, since it always runs with `--dangerously-skip-permissions`
+  (see "Dispatching Gemini"): give it the SHA range like Codex, and point it at the same files.
 
 Worked example (2026-09-07): a Keycloakify login page was ejected and customised. Given only the
 diff, Gemini reported as its top merge blocker that the ejection had "dropped" the
@@ -251,30 +250,37 @@ file, then:
 
 agy's print mode denies every shell command not matched by an allow rule in
 `~/.gemini/antigravity-cli/settings.json`, and adding allow rules one at a time never converges
-(agy picks a different command on each run). Pass `--dangerously-skip-permissions` instead, together
+(agy picks a different command on each run). Always pass `--dangerously-skip-permissions`, together
 with `--mode plan --sandbox`: then it runs `git show`/`git diff`/`git grep` itself and reads the repo,
-so the prompt carries the SHA range and doc paths, like the Codex prompt. Verified on agy 1.5.17,
+so the prompt carries the SHA range and doc paths, like the Codex prompt. Verified on agy 1.5.18,
 2026-11-26: it ran git and left the tree untouched. The commit gate plus the `git status` comparison
 after the run is the safety net, as for Codex.
 
 ```bash
 agy --model gemini-4-neon-high --mode plan --sandbox --dangerously-skip-permissions \
-  --print-timeout 10m --print "$(cat prompt.md)" > agy-review.md 2> agy-stderr.log
-test -s agy-review.md
+  --output-format stream-json --print-timeout 60m --print "$(cat prompt.md)" \
+  > agy-review.jsonl 2> agy-stderr.log
+jq -r 'select(.event=="result") | .result | "status=\(.status) finished_reason=\(.finished_reason // "-") denied=\(.denied_actions // [] | length)"' agy-review.jsonl
+jq -r 'select(.event=="result") | .result.response' agy-review.jsonl > agy-review.md
 ```
 
-- Run it in the foreground, with the Bash tool's `timeout` at its 600000 ms maximum.
-  Backgrounded, agy exits 0 with empty stdout. A short foreground smoke test succeeds, so it
-  looks like a prompt-size problem when it is not.
-- `--print-timeout` defaults to 5m; raise it or the review dies mid-thought.
-- Exit 0 with empty stdout is not a review: check stderr and re-dispatch.
+- Start it with the Bash tool's `run_in_background`; the harness notifies on exit, so there is no
+  600 s cap and nothing to poll. Background, foreground and detached `nohup` runs all returned
+  the full review (agy 1.5.18, 2026-11-26).
+- A complete review is exit 0, `status=SUCCESS`, no `finished_reason`, non-empty `response`.
+  Anything else is a failed run: read `agy-stderr.log` and re-dispatch.
+- `denied` above 0, or stderr `no output produced — a tool required the "command" permission`,
+  means a tool was auto-denied (still exit 0): the run lacked `--dangerously-skip-permissions`.
+- `--print-timeout` defaults to unlimited; the 60m is a ceiling for a wedged background run.
+  When it fires: exit 3, `finished_reason: print_timeout`, partial text in `response`.
+- The first line (`init` event) carries `conversation_id` within seconds. If stdout is lost, the
+  reply is the last `PLANNER_RESPONSE` without `tool_calls` in
+  `~/.gemini/antigravity-cli/brain/<id>/.system_generated/logs/transcript_full.jsonl`.
 - In plan mode a model can answer by writing `implementation_plan.md` under
-  `~/.gemini/antigravity-cli/brain/<id>/` and printing only a link to it. Then stdout is not
+  `~/.gemini/antigravity-cli/brain/<id>/` and printing only a link to it. Then `response` is not
   empty but holds no review: read that file, or tell the model to reply on stdout.
-- Never `--continue`/`-c` (ambiguous "most recent"). Resume by the recorded `--conversation` id
-  from `~/.gemini/antigravity-cli/cache/last_conversations.json`, keyed by repo path.
-- Fallback without the flag: embed whole files in the prompt (see above) and tell it not to use
-  tools; keep the prompt under ~180 KB, agy truncates above ~190 KB.
+- Never `--continue`/`-c` (ambiguous "most recent"). Resume with `--conversation <id>` from the
+  `init` line; `cache/last_conversations.json` keeps only the latest run per repo path.
 
 ## Commit gate — opens every phase review
 
@@ -383,7 +389,7 @@ has no implementation transcript, so it judges the branch as an outside reviewer
 - Dropping the Gemini pass on anything beyond 1–2 trivial phases because "Codex already looked".
 - Dispatching an external model by a remembered id without checking it is still installed, or
   silently falling back to a neighbouring version.
-- Handing Gemini embedded files when it can read the repo by SHA range.
+- Handing Gemini embedded files instead of the SHA range.
 - Reporting an empty agy output or a suspiciously fast `codex exec` as a clean verdict.
 - Review prompts without scope-outs — produces "findings" that are just the unbuilt plan.
 - Handing a headless reviewer only a diff. It reports defects in the code it cannot see,
