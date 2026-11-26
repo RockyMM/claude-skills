@@ -218,9 +218,10 @@ missing context as missing code and reports it with full confidence.
 - **Codex** reads the real repo under `--sandbox read-only`. Say so in the prompt, and point it at
   the files worth comparing (`node_modules/<lib>` for an ejected or overridden framework file, the
   sibling repo for a shared file).
-- **Headless Gemini** reads nothing, so the prompt carries the code: the complete post-change
-  contents of every touched file, plus any file the change ejects, overrides, extends or relies on.
-  A diff hunk is orientation, not evidence.
+- **Gemini** reads the real repo too when dispatched with `--dangerously-skip-permissions` (see
+  "Dispatching Gemini"): give it the SHA range like Codex. Only the no-tools fallback needs the
+  code in the prompt: the complete post-change contents of every touched file, plus any file the
+  change ejects, overrides, extends or relies on. A diff hunk is orientation, not evidence.
 
 Worked example (2026-09-07): a Keycloakify login page was ejected and customised. Given only the
 diff, Gemini reported as its top merge blocker that the ejection had "dropped" the
@@ -249,35 +250,31 @@ file, then:
 ### Dispatching Gemini (agy)
 
 agy's print mode denies every shell command not matched by an allow rule in
-`~/.gemini/antigravity-cli/settings.json` (`permissions.allow`, e.g. `command(git diff)`). Adding
-allow rules one at a time never converges, because agy picks a different command on each run
-(`git grep … || echo`, `find …`), and auto mode refuses `--dangerously-skip-permissions`. Two
-ways to run it:
+`~/.gemini/antigravity-cli/settings.json`, and adding allow rules one at a time never converges
+(agy picks a different command on each run). Pass `--dangerously-skip-permissions` instead, together
+with `--mode plan --sandbox`: then it runs `git show`/`git diff`/`git grep` itself and reads the repo,
+so the prompt carries the SHA range and doc paths, like the Codex prompt. Verified on agy 1.5.17,
+2026-11-26: it ran git and left the tree untouched. The commit gate plus the `git status` comparison
+after the run is the safety net, as for Codex.
 
-- **Headless, when the prompt can carry everything:** whole files (see above), design/plan
-  excerpts, and an instruction not to use tools.
+```bash
+agy --model gemini-4-neon-high --mode plan --sandbox --dangerously-skip-permissions \
+  --print-timeout 10m --print "$(cat prompt.md)" > agy-review.md 2> agy-stderr.log
+test -s agy-review.md
+```
 
-  ```bash
-  agy --model gemini-4-neon-high --mode plan --sandbox --print-timeout 10m \
-    --print "$(cat prompt.md)" > agy-review.md 2> agy-stderr.log
-  test -s agy-review.md
-  ```
-
-  - Run it in the foreground, with the Bash tool's `timeout` at its 600000 ms maximum.
-    Backgrounded, agy exits 0 with empty stdout. A short foreground smoke test succeeds, so it
-    looks like a prompt-size problem when it is not.
-  - `--print-timeout` defaults to 5m; raise it or the review dies mid-thought.
-  - Exit 0 with empty stdout is not a review: check stderr and re-dispatch.
-  - In plan mode a model can answer by writing `implementation_plan.md` under
-    `~/.gemini/antigravity-cli/brain/<id>/` and printing only a link to it. Then stdout is not
-    empty but holds no review: read that file, or tell the model to reply on stdout.
-  - `--mode plan --sandbox` is the read-only posture.
-  - Never `--continue`/`-c` (ambiguous "most recent"). Resume by the recorded `--conversation` id
-    from `~/.gemini/antigravity-cli/cache/last_conversations.json`, keyed by repo path.
-- **Interactive, when the reviewer must walk the repo** (too many files to embed, a whole-branch
-  review): give Rade the command to run in his terminal, and read the verdict when he says it is
-  done: `agy -i "$(cat <prompt>.md)" --model gemini-4-neon-high --mode plan` (`-xhigh` at the
-  final gate).
+- Run it in the foreground, with the Bash tool's `timeout` at its 600000 ms maximum.
+  Backgrounded, agy exits 0 with empty stdout. A short foreground smoke test succeeds, so it
+  looks like a prompt-size problem when it is not.
+- `--print-timeout` defaults to 5m; raise it or the review dies mid-thought.
+- Exit 0 with empty stdout is not a review: check stderr and re-dispatch.
+- In plan mode a model can answer by writing `implementation_plan.md` under
+  `~/.gemini/antigravity-cli/brain/<id>/` and printing only a link to it. Then stdout is not
+  empty but holds no review: read that file, or tell the model to reply on stdout.
+- Never `--continue`/`-c` (ambiguous "most recent"). Resume by the recorded `--conversation` id
+  from `~/.gemini/antigravity-cli/cache/last_conversations.json`, keyed by repo path.
+- Fallback without the flag: embed whole files in the prompt (see above) and tell it not to use
+  tools; keep the prompt under ~180 KB, agy truncates above ~190 KB.
 
 ## Commit gate — opens every phase review
 
@@ -294,7 +291,9 @@ with evidence:
    among it.
 2. **Stage explicit paths only.** Never `git add .` / `git add -A` / `git add docs`.
 3. When the repo's formatter rewrites whole touched files (e.g. a Spotless ratchet), commit that
-   formatting first and the change second, so the real diff stays readable.
+   formatting first and the change second, so the real diff stays readable. The branch needs only one
+   formatting commit: a later phase may add another, and the coordinator squashes them into the first
+   before the final gate (see "Before the final gate").
 4. One commit per phase, message `<TICKET>: <what this phase delivered>`. Not "wip", not a squash
    of several phases.
 5. Record the hash in the plan doc's status notes in the same turn.
@@ -329,6 +328,18 @@ research. Any stage may raise it.
    reasoning and risks.
 3. Give Rade Fable's answer together with your own assessment; the decision goes into design.md.
 
+## Before the final gate — reorganize the branch (coordinator)
+
+The last coordinator step, before handing over: make the branch history readable for the gate's
+reviewers and for Rade.
+
+- Squash the formatting-only commits into one, placed before the first real commit that needs it
+  (rebuild on a temporary branch with cherry-picks; `git diff <old tip> <new tip>` must be empty).
+- Keep each phase's real commit as it is. Never rewrite other people's commits, and don't move commits
+  across merge commits: leave a formatting commit that sits before a merge where it is.
+- If the branch is pushed, this rewrite needs Rade's go and a `--force-with-lease` push. Record the
+  old→new hash map in the plan's status notes, because review files cite the old hashes.
+
 ## Stage 3 — Final gate (fresh Opus xhigh session)
 
 The session reads design.md, the plan with its status notes, and the range `<base>..<head>`. It
@@ -342,8 +353,8 @@ has no implementation transcript, so it judges the branch as an outside reviewer
   discipline as above, docs-first, full scope-out list including everything settled during the
   phases, and ask for an explicit MERGE / DO-NOT-MERGE verdict. Still zero Anthropic cost.
 - **Gemini whole-branch review on `gemini-4-neon-xhigh`** alongside sol, on the same scoped brief, unless the branch was
-  trivial enough to skip Gemini in-phase. A whole branch rarely fits in a headless prompt, so
-  this one is usually interactive.
+  trivial enough to skip Gemini in-phase. With `--dangerously-skip-permissions` it reviews the
+  whole range itself, headless.
 - No additional Anthropic-side reviewer agent — adjudication stays with this session.
 - Optional when the branch grew defensively: an **extra-safe sweep** (fresh `model: sonnet,
   effort: medium` agent lists every defensive addition with file:line + what mechanism already
@@ -372,6 +383,7 @@ has no implementation transcript, so it judges the branch as an outside reviewer
 - Dropping the Gemini pass on anything beyond 1–2 trivial phases because "Codex already looked".
 - Dispatching an external model by a remembered id without checking it is still installed, or
   silently falling back to a neighbouring version.
+- Handing Gemini embedded files when it can read the repo by SHA range.
 - Reporting an empty agy output or a suspiciously fast `codex exec` as a clean verdict.
 - Review prompts without scope-outs — produces "findings" that are just the unbuilt plan.
 - Handing a headless reviewer only a diff. It reports defects in the code it cannot see,
